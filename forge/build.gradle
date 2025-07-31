@@ -1,0 +1,228 @@
+plugins {
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version "${forgegradle_version}"
+    id 'org.spongepowered.mixin' version "0.7-SNAPSHOT"
+    id 'java-library'
+}
+
+if (System.getenv('MOD_VERSION') != null) {
+    mod_version = System.getenv('MOD_VERSION')
+}
+version = mod_version
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}-forge"
+}
+
+mixin {
+    add(sourceSets.main, "${mod_id}.refmap.json")
+
+    config("${mod_id}.mixins.json")
+    config("${mod_id}.forge.mixins.json")
+    debug.verbose = true
+    debug.export = true
+}
+
+minecraft {
+    mappings channel: forge_mapping_channel, version: forge_mapping_version
+
+    // Tell FG to not automtically create the reobf tasks, as we now use Official mappings at runtime, If you don't use them at dev time then you'll have to fix your reobf yourself.
+    reobf = false
+
+    // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    // In most cases, it is not necessary to enable.
+    // enableEclipsePrepareRuns = true
+    // enableIdeaPrepareRuns = true
+
+    copyIdeResources = true
+
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        // applies to all the run configs below
+        configureEach {
+            workingDirectory project.file('run')
+            ideaModule "${rootProject.name.replace(" ", "_")}.${project.name}.main"
+
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+
+            jvmArgs '-XX:+AllowEnhancedClassRedefinition', '-XX:+IgnoreUnrecognizedVMOptions'
+        }
+
+        client {
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            property 'forge.enabledGameTestNamespaces', project.mod_id
+
+            mods {
+                modClientRun {
+                    source sourceSets.main
+                    source project(":common").sourceSets.main
+                }
+            }
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', project.mod_id
+            args '--nogui'
+
+            mods {
+                modClientRun {
+                    source sourceSets.main
+                    source project(":common").sourceSets.main
+                }
+            }
+        }
+
+        data {
+            // example of overriding the workingDirectory set in configureEach above
+            workingDirectory project.file('run-data')
+
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            args '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+
+            mods {
+                modClientRun {
+                    source sourceSets.main
+                    source project(":common").sourceSets.main
+                }
+            }
+
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor "org.spongepowered:mixin:0.8.6:processor"
+
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.3.6"))
+    implementation(jarJar("io.github.llamalad7:mixinextras-forge:0.3.6")) {
+        jarJar.ranged(it, "[0.3.6,)")
+    }
+
+    compileOnly project(":common")
+
+    //Jei
+    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}"
+    runtimeOnly "mezz.jei:jei-${minecraft_version}-forge:${jei_version}"
+
+//    implementation "vazkii.patchouli:Patchouli:${minecraft_version}-${patchouli_version}-FORGE"
+
+    // Hack fix for now, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transtive dependencies request 6.0+
+    implementation('net.sf.jopt-simple:jopt-simple:5.0.4') { version { strictly '5.0.4' } }
+
+    //commonmark
+    //mark it for forge to add to the classpath
+    minecraftLibrary "org.commonmark:commonmark:${commonmark_version}"
+    minecraftLibrary "org.commonmark:commonmark-ext-gfm-strikethrough:${commonmark_version}"
+    minecraftLibrary "org.commonmark:commonmark-ext-ins:${commonmark_version}"
+    //and include it in the jar
+    jarJar(group: 'org.commonmark', name: 'commonmark', version: "[${commonmark_version},)")
+    jarJar(group: 'org.commonmark', name: 'commonmark-ext-gfm-strikethrough', version: "[${commonmark_version},)")
+    jarJar(group: 'org.commonmark', name: 'commonmark-ext-ins', version: "[${commonmark_version},)")
+}
+
+//Disable test compilation as a) we are not using tests and b) it fails due to not being able to access jei in common
+compileTestJava {
+    enabled = false
+}
+
+tasks.withType(JavaCompile).configureEach {
+    source(project(":common").sourceSets.main.allSource)
+}
+
+tasks.withType(Javadoc).configureEach {
+    source(project(":common").sourceSets.main.allJava)
+}
+
+tasks.named("sourcesJar", Jar) {
+    //for some reason we need item textures in forge too for dev runtime, so we have to set a strategy
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(project(":common").sourceSets.main.allSource)
+}
+
+
+tasks.named('jar') {
+    archiveClassifier = "slim"
+//    finalizedBy('reobfJar')
+}
+
+tasks.named('build').configure { dependsOn('jarJar') }
+jarJar.enable()
+tasks.named('jarJar') {
+    archiveClassifier = ""
+//    finalizedBy('reobfJar')
+}
+
+tasks.withType(ProcessResources).configureEach {
+    //for some reason we need item textures in forge too for dev runtime, so we have to set a strategy
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from project(":common").sourceSets.main.resources
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId base.archivesName.get()
+
+            from components.java
+            jarJar.component(it)
+
+            pom {
+                name = mod_name
+                description = 'Data-driven minecraft in-game documentation with progress visualization.'
+                url = 'https://github.com/klikli-dev/modonomicon'
+                licenses {
+                    license {
+                        name = 'MIT AND CC-BY-4.0'
+                        url = 'https://github.com/klikli-dev/modonomicon#licensing'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:ssh:git@github.com:klikli-dev/modonomicon.git'
+                    url = 'https://github.com/klikli-dev/modonomicon'
+                }
+                //remove commonmark from the pom, otherwise forge will include it in the classpath twice
+                //once from JiJ, once as transitive dep.
+                withXml {
+                    asNode().dependencies.dependency.each { dep ->
+                        if(dep.groupId.text() == 'org.commonmark') {
+                            assert dep.parent().remove(dep)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "cloudsmith"
+            url = "https://maven.cloudsmith.io/klikli-dev/mods/"
+            def releasesRepoUrl = "https://maven.cloudsmith.io/klikli-dev/mods/"
+            def snapshotsRepoUrl = "https://maven.cloudsmith.io/klikli-dev/mods/"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials {
+                username = System.getenv('MAVEN_USER')
+                password = System.getenv('MAVEN_PASS')
+            }
+        }
+    }
+}
+
+sourceSets.each {
+    def dir = layout.buildDirectory.dir("sourcesSets/$it.name")
+    it.output.resourcesDir = dir
+    it.java.destinationDirectory = dir
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

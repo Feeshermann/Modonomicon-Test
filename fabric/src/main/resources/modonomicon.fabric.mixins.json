@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.klikli_dev.modonomicon.mixin",
+  "refmap": "${mod_id}.refmap.json",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinPlayerAdvancements"
+  ],
+  "client": [
+    "MixinClientPacketListener",
+    "MixinGameRenderer",
+    "MixinLevelRenderer",
+    "MixinModelManager"
+  ],
+  "server": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
