@@ -41,4 +41,4 @@ Code is licensed under the MIT license, view [LICENSES/MIT](./LICENSES/MIT.txt).
 Assets are licensed under the CC-BY-SA-4.0 license, view [LICENSES/CC-BY-SA-4.0](./LICENSES/CC-BY-4.0.txt).
 Third party software and assets may be distributed under a different license, see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
-I (feeshermann) am using this for nothing else but to learn about modonomicon and how to use it.
+I (feeshermann) am using this for nothing else but to learn about modonomicon, how to use it, and how to create my own mod for modonomicon.
